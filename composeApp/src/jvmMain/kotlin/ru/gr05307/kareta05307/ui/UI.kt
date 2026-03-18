@@ -1,12 +1,11 @@
-package ru.gr05307.ui
+package ru.gr05307.kareta05307.ui
 
-import java.awt.TrayIcon
+import ru.gr05307.net.InfoType
 
 
 interface UI {
     fun showMessage(author: String, msg: String)
     fun showInfo(msg: String, msgType: InfoType)
-    fun showRequest(request: RequestType)
 
     fun addUserDataListener(listener: (String) -> Unit)
     fun removeUserDataListener(listener: (String) -> Unit)

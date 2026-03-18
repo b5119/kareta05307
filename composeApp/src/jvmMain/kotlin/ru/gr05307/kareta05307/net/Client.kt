@@ -1,5 +1,7 @@
-package ru.gr05307.net
+package ru.gr05307.kareta05307.net
 
+import ru.gr05307.net.Communicator
+import ru.gr05307.net.InfoType
 import java.net.Socket
 import kotlin.concurrent.thread
 

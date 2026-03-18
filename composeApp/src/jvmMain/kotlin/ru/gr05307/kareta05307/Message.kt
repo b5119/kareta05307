@@ -1,2 +1,5 @@
-package ru.gr05307.kareta05307 
+package ru.gr05307.kareta05307
 
+class Message {
+
+}

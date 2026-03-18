@@ -1,5 +1,6 @@
-package ru.gr05307.ui
+package ru.gr05307.kareta05307.ui
 
+import ru.gr05307.net.InfoType
 import kotlin.concurrent.thread
 
 class ConsoleUI : UI {
@@ -12,14 +13,6 @@ class ConsoleUI : UI {
 
     override fun showInfo(msg: String, msgType: InfoType) {
         println("$msgType: $msg")
-    }
-
-    override fun showRequest(request: RequestType) {
-        when (request) {
-            RequestType.USERNAME -> {
-                println("Введите ваше имя")
-            }
-        }
     }
 
     override fun addUserDataListener(listener: (String) -> Unit) {
