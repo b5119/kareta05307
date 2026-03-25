@@ -51,12 +51,10 @@ class Client(
             InfoType.WARNING,
             InfoType.ERROR -> infoListeners.forEach {it(msg[1], type)}
             InfoType.MESSAGE -> {
+                println(data)
                 val authMsg = msg[1].split(":", limit = 2)
                 messageListeners.forEach { it(authMsg[0], authMsg[1]) }
             }
-        }
-        messageListeners.forEach {
-            it("SOMEONE", data)
         }
     }
 

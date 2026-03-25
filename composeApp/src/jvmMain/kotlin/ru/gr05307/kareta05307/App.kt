@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +38,44 @@ import kareta05307.composeapp.generated.resources.compose_multiplatform
 @Composable
 fun App(viewModel: GraphicsUI) {
     MaterialTheme {
+
+        if (viewModel.showDialog){
+            AlertDialog(
+                text = {
+                    OutlinedTextField(
+                        viewModel.userText,
+                        {
+                            viewModel.userText = it
+                        }
+                    )
+                },
+                onDismissRequest = {
+                    viewModel.exit()
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.send()
+                        }
+                    ){
+                        Text("Ок")
+                    }
+
+                },
+                dismissButton = {
+                    Button(
+                        onClick = {
+                            viewModel.exit()
+                        },
+
+                    ){ Text("Выйти") }
+                },
+                title = {
+                    Text(viewModel.dialogMessage)
+                },
+            )
+        }
+
         Column(Modifier
             .fillMaxSize()
             .padding(4.dp)
@@ -51,7 +90,16 @@ fun App(viewModel: GraphicsUI) {
                 verticalArrangement = spacedBy(4.dp),
             ) {
                 items(viewModel.messages){
-
+                    Box(modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(0.5f)
+                        .background(MaterialTheme.colorScheme.primary),
+                    ) {
+                        Column(Modifier.fillMaxSize().padding(16.dp)) {
+                            Text(it.author, color = MaterialTheme.colorScheme.onPrimary)
+                            Text(it.msg, color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
                 }
             }
             Row(
@@ -68,7 +116,7 @@ fun App(viewModel: GraphicsUI) {
                     maxLines = 5,
                 )
                 IconButton(
-                    onClick = {},
+                    onClick = { viewModel.send() },
                     modifier = Modifier.padding(4.dp)
                 ) {
                     Icon(
