@@ -32,6 +32,9 @@ class GraphicsUI : ViewModel(), UI {
                     username = extractUsernameFromWelcomeMessage(msg)
                     waitingForUsername = false
                     showDialog = false
+                } else if(!waitingForUsername) {
+                    messages.add(Message("", msg, false))   // sys. notif
+                    showDialog = false
                 } else {
                     showDialog = true
                 }
