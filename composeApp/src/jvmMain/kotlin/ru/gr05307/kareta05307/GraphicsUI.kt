@@ -33,18 +33,26 @@ class GraphicsUI : ViewModel(), UI {
                     waitingForUsername = false
                     showDialog = false
                 } else if(!waitingForUsername) {
-                    messages.add(Message("", msg, false))   // sys. notif
+                    messages.add(Message("", msg, false, InfoType.INFORMATION))
                     showDialog = false
                 } else {
                     showDialog = true
                 }
             }
-            InfoType.WARNING, InfoType.ERROR -> {
+            InfoType.WARNING -> {
                 if (waitingForUsername) {
-                    // Keep dialog open for retry
                     showDialog = true
                 } else {
+                    messages.add(Message("", msg, false, InfoType.WARNING))
+                    showDialog = false
+                }
+            }
+            InfoType.ERROR -> {
+                if (waitingForUsername) {
                     showDialog = true
+                } else {
+                    messages.add(Message("", msg, false, InfoType.ERROR))
+                    showDialog = false
                 }
             }
             InfoType.MESSAGE -> {}

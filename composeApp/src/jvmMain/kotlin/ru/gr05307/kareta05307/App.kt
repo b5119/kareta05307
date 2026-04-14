@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
@@ -39,9 +40,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.gr05307.net.InfoType
 
 @Composable
 fun App(viewModel: GraphicsUI) {
+    val listState = rememberLazyListState()
+
+    // Auto-scroll to latest message when messages change
+    LaunchedEffect(viewModel.messages.size) {
+        if (viewModel.messages.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
     MaterialTheme {
         if (viewModel.showDialog) {
             AlertDialog(
@@ -93,13 +104,14 @@ fun App(viewModel: GraphicsUI) {
         ) {
             // Chat messages area
             LazyColumn(
-                Modifier
+                state = listState,
+                modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .padding(8.dp),
-                reverseLayout = true,
+                reverseLayout = false,
                 verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom),
             ) {
                 items(viewModel.messages) { message ->

@@ -15,7 +15,39 @@ class ConnectedClient(private val socket: Socket) {
         sendData("${InfoType.INFORMATION}:Введите своё имя")
     }
 
+    private fun notifyLeave(client: ConnectedClient) {
+        val cName = client.username
+        if (cName != null) {
+            val leaveMsg = "${InfoType.INFORMATION}:Пользователь $cName покинул чат."
+            val aliveClients = clients.filter {it !== client && !it.isDisconnected()}.toList()
+            aliveClients.forEach { alive ->
+                try {
+                    alive.sendData(leaveMsg)
+                } catch (_: Exception) {
+
+                }
+            }
+        }
+    }
+
+    private fun handleDisconnect() {
+        notifyLeave(this)
+        clients.remove(this)
+        stop()
+        try {
+            socket.close()
+        } catch (_: Exception) {
+        }
+    }
+
     private fun parseData(data: String) {
+        // clean up disconnected clients
+        val disconnectedClients = clients.filter { it.isDisconnected() }.toList()
+        disconnectedClients.forEach { client ->
+            notifyLeave(client)
+            clients.remove(client)
+        }
+
         if (username == null) {
             when {
                 data.isBlank() -> {
@@ -43,7 +75,13 @@ class ConnectedClient(private val socket: Socket) {
     }
 
     fun start() = communicator.start()
-    fun sendData(data: String) = communicator.sendData(data)
+    fun sendData(data: String) {
+        try {
+            communicator.sendData(data)
+        } catch (_: Exception) {
+            handleDisconnect()
+        }
+    }
     fun stop() = communicator.stop()
 
     fun isDisconnected(): Boolean {
