@@ -1,17 +1,15 @@
 package ru.gr05307.kareta05307
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement.spacedBy
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,24 +27,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import org.jetbrains.compose.resources.painterResource
-
-import kareta05307.composeapp.generated.resources.Res
-import kareta05307.composeapp.generated.resources.compose_multiplatform
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun App(viewModel: GraphicsUI) {
     MaterialTheme {
-
         if (viewModel.showDialog) {
             AlertDialog(
                 text = {
@@ -61,7 +57,8 @@ fun App(viewModel: GraphicsUI) {
                                 focusManager.clearFocus()
                             }
                         ),
-                        singleLine = true
+                        singleLine = true,
+                        label = { Text("Имя пользователя") }
                     )
                 },
                 onDismissRequest = { },
@@ -89,35 +86,43 @@ fun App(viewModel: GraphicsUI) {
             )
         }
 
-        Column(Modifier
-            .fillMaxSize()
-            .padding(4.dp)
-            .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(8.dp)
         ) {
+            // Chat messages area
             LazyColumn(
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(8.dp),
                 reverseLayout = true,
-                verticalArrangement = spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom),
             ) {
-                items(viewModel.messages){
-                    Box(modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(0.5f)
-                        .background(MaterialTheme.colorScheme.primary),
-                    ) {
-                        Column(Modifier.fillMaxSize().padding(16.dp)) {
-                            Text(it.author, color = MaterialTheme.colorScheme.onPrimary)
-                            Text(it.msg, color = MaterialTheme.colorScheme.onPrimary)
-                        }
+                items(viewModel.messages) { message ->
+                    // Handle regular messages and system/join notification
+                    if (message.author.isEmpty()) {
+                        NotificationBubble(
+                            message = message
+                        )
+                    } else {
+                        MessageBubble(
+                            message = message,
+                            isFromMe = message.isFromMe
+                        )
                     }
                 }
             }
+
+            // Input area
             Row(
-                Modifier.fillMaxWidth().padding(4.dp),
-                horizontalArrangement = spacedBy(4.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 var textFieldValue by remember { mutableStateOf(viewModel.userText) }
@@ -127,26 +132,28 @@ fun App(viewModel: GraphicsUI) {
                         textFieldValue = it
                         viewModel.userText = it
                     },
-                    modifier = Modifier.weight(1f).onPreviewKeyEvent { keyEvent ->
-                        if (keyEvent.key == Key.Enter) {
-                            if (keyEvent.isShiftPressed) {
-                                // Shift+Enter: add newline
-                                textFieldValue += "\n"
-                                viewModel.userText = textFieldValue
-                            } else {
-                                // Enter alone: send message
-                                if (textFieldValue.isNotBlank()) {
-                                    viewModel.send()
-                                    textFieldValue = ""
-                                    viewModel.userText = ""
+                    modifier = Modifier
+                        .weight(1f)
+                        .onPreviewKeyEvent { keyEvent ->
+                            if (keyEvent.key == Key.Enter) {
+                                if (keyEvent.isShiftPressed) {
+                                    textFieldValue += "\n"
+                                    viewModel.userText = textFieldValue
+                                } else {
+                                    if (textFieldValue.isNotBlank()) {
+                                        viewModel.send()
+                                        textFieldValue = ""
+                                        viewModel.userText = ""
+                                    }
                                 }
+                                true
+                            } else {
+                                false
                             }
-                            true
-                        } else {
-                            false
-                        }
-                    },
-                    maxLines = 5,
+                        },
+                    placeholder = { Text("Введите сообщение... (Enter - отправить, Shift+Enter - новая строка)") },
+                    maxLines = 4,
+                    shape = RoundedCornerShape(24.dp),
                 )
                 IconButton(
                     onClick = {
@@ -156,14 +163,93 @@ fun App(viewModel: GraphicsUI) {
                             viewModel.userText = ""
                         }
                     },
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary,
+                            RoundedCornerShape(50)
+                        )
                 ) {
                     Icon(
                         Icons.Default.Send,
-                        contentDescription = null
+                        contentDescription = "Отправить",
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun MessageBubble(
+    message: Message,
+    isFromMe: Boolean,
+) {
+    val bubbleColor = if (isFromMe) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+
+    val alignment = if (isFromMe) Alignment.CenterEnd else Alignment.CenterStart
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = alignment
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .shadow(2.dp, RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp))
+                .background(bubbleColor)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            if (!isFromMe) {
+                Text(
+                    text = message.author,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Text(
+                text = message.msg,
+                fontSize = 15.sp,
+                color = if (isFromMe) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun NotificationBubble(
+    message: Message
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+                    RoundedCornerShape(12.dp)
+                )
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            Text(
+                message.msg,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
