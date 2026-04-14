@@ -7,9 +7,9 @@ class ConnectedClient(private val socket: Socket) {
         private val clients = mutableListOf<ConnectedClient>()
     }
     private val communicator = Communicator(socket)
-    private var username : String? = null
+    private var username: String? = null
 
-    init{
+    init {
         communicator.addDataListener { parseData(it) }
         clients.add(this)
         sendData("${InfoType.INFORMATION}:Введите своё имя")
@@ -17,18 +17,36 @@ class ConnectedClient(private val socket: Socket) {
 
     private fun parseData(data: String) {
         if (username == null) {
-            if (! clients.any { it.username == data })
-                username = data
-            else {
-                sendData("${InfoType.WARNING}:Такое имя уже использовано.Введите другое имя.")
+            when {
+                data.isBlank() -> {
+                    sendData("${InfoType.WARNING}:Имя не может быть пустым. Введите имя.")
+                }
+                data.trim() != data -> {
+                    sendData("${InfoType.WARNING}:Имя не должно содержать пробелов в начале или конце. Введите другое имя.")
+                }
+                clients.any { it !== this && it.username == data } -> {
+                    sendData("${InfoType.WARNING}:Такое имя уже использовано. Введите другое имя.")
+                }
+                else -> {
+                    username = data
+                    sendData("${InfoType.INFORMATION}:Добро пожаловать, $data!")
+                    clients.forEach {
+                        if (it !== this) {
+                            it.sendData("${InfoType.INFORMATION}:Пользователь $data присоединился к чату.")
+                        }
+                    }
+                }
             }
-
-        }
-        else
+        } else {
             clients.forEach { it.sendData("${InfoType.MESSAGE}:$username: $data") }
+        }
     }
 
     fun start() = communicator.start()
     fun sendData(data: String) = communicator.sendData(data)
     fun stop() = communicator.stop()
+
+    fun isDisconnected(): Boolean {
+        return socket.isClosed || !socket.isConnected
+    }
 }

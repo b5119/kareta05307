@@ -22,12 +22,20 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
@@ -39,36 +47,41 @@ import kareta05307.composeapp.generated.resources.compose_multiplatform
 fun App(viewModel: GraphicsUI) {
     MaterialTheme {
 
-        if (viewModel.showDialog){
+        if (viewModel.showDialog) {
             AlertDialog(
                 text = {
+                    val focusManager = LocalFocusManager.current
                     OutlinedTextField(
-                        viewModel.userText,
-                        {
-                            viewModel.userText = it
-                        }
+                        value = viewModel.userText,
+                        onValueChange = { viewModel.userText = it },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                viewModel.send()
+                                focusManager.clearFocus()
+                            }
+                        ),
+                        singleLine = true
                     )
                 },
-                onDismissRequest = {
-                    viewModel.exit()
-                },
+                onDismissRequest = { },
                 confirmButton = {
                     Button(
                         onClick = {
                             viewModel.send()
                         }
-                    ){
+                    ) {
                         Text("Ок")
                     }
-
                 },
                 dismissButton = {
                     Button(
                         onClick = {
                             viewModel.exit()
-                        },
-
-                    ){ Text("Выйти") }
+                        }
+                    ) {
+                        Text("Выйти")
+                    }
                 },
                 title = {
                     Text(viewModel.dialogMessage)
@@ -107,16 +120,42 @@ fun App(viewModel: GraphicsUI) {
                 horizontalArrangement = spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                var textFieldValue by remember { mutableStateOf(viewModel.userText) }
                 OutlinedTextField(
-                    viewModel.userText,
-                    {
+                    value = textFieldValue,
+                    onValueChange = {
+                        textFieldValue = it
                         viewModel.userText = it
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).onPreviewKeyEvent { keyEvent ->
+                        if (keyEvent.key == Key.Enter) {
+                            if (keyEvent.isShiftPressed) {
+                                // Shift+Enter: add newline
+                                textFieldValue += "\n"
+                                viewModel.userText = textFieldValue
+                            } else {
+                                // Enter alone: send message
+                                if (textFieldValue.isNotBlank()) {
+                                    viewModel.send()
+                                    textFieldValue = ""
+                                    viewModel.userText = ""
+                                }
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    },
                     maxLines = 5,
                 )
                 IconButton(
-                    onClick = { viewModel.send() },
+                    onClick = {
+                        if (viewModel.userText.isNotBlank()) {
+                            viewModel.send()
+                            textFieldValue = ""
+                            viewModel.userText = ""
+                        }
+                    },
                     modifier = Modifier.padding(4.dp)
                 ) {
                     Icon(
