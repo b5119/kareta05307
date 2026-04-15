@@ -19,6 +19,17 @@ class GraphicsUI : ViewModel(), UI {
     var username: String? by mutableStateOf(null)
     private var waitingForUsername = true
 
+    var connectionError by mutableStateOf<String?>(null)
+        private set
+
+    fun setConnectionErrorMessage(error: String) {
+        connectionError = error
+    }
+
+    fun clearConnectionError() {
+        connectionError = null
+    }
+
     override fun showMessage(author: String, msg: String) {
         messages.add(Message(author, msg, isFromMe = author == username))
     }

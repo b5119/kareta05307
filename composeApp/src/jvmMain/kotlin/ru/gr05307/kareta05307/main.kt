@@ -28,14 +28,25 @@ class Main(
 
 fun main() = application {
     val ui = GraphicsUI()
-    val client: Client
+    var client: Client? = null
     var main: Main? = null
-    try {
-        client = Client()
-        main = Main(client, ui)
-    } catch (_: Exception) {
 
+    fun connect() {
+        try {
+            client = Client()
+            main = Main(client!!, ui)
+            ui.clearConnectionError()
+        } catch (e: Exception) {
+            client = null
+            main = null
+            ui.setConnectionErrorMessage(
+                "Не удалось подключиться к серверу.\n\nПроверьте, что сервер запущен, и попробуйте снова."
+            )
+        }
     }
+
+    connect()
+
     Window(
         onCloseRequest = ::exitApplication,
         title = "Карета 05-307",

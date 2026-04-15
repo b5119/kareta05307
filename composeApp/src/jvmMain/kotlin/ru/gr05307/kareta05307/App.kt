@@ -54,6 +54,20 @@ fun App(viewModel: GraphicsUI) {
     }
 
     MaterialTheme {
+        // Connection error dialog
+        if (viewModel.connectionError != null) {
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text("Ошибка подключения") },
+                text = { Text(viewModel.connectionError!!) },
+                confirmButton = {
+                    Button(onClick = { viewModel.exit() }) {
+                        Text("Выйти")
+                    }
+                }
+            )
+        }
+
         if (viewModel.showDialog) {
             AlertDialog(
                 text = {
@@ -163,7 +177,7 @@ fun App(viewModel: GraphicsUI) {
                                 false
                             }
                         },
-                    placeholder = { Text("Введите сообщение... (Enter - отправить, Shift+Enter - новая строка)") },
+                    placeholder = { Text("Введите сообщение...") },
                     maxLines = 4,
                     shape = RoundedCornerShape(24.dp),
                 )

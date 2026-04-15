@@ -24,7 +24,7 @@ class ConnectedClient(private val socket: Socket) {
                 try {
                     alive.sendData(leaveMsg)
                 } catch (_: Exception) {
-
+                    // dead client cleaned by parseData call
                 }
             }
         }
