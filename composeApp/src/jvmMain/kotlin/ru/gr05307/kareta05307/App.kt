@@ -54,12 +54,26 @@ fun App(viewModel: GraphicsUI) {
     }
 
     MaterialTheme {
-        // Connection error dialog
+        // Connection error dialog (initial connection failed)
         if (viewModel.connectionError != null) {
             AlertDialog(
                 onDismissRequest = { },
                 title = { Text("Ошибка подключения") },
                 text = { Text(viewModel.connectionError!!) },
+                confirmButton = {
+                    Button(onClick = { viewModel.exit() }) {
+                        Text("Выйти")
+                    }
+                }
+            )
+        }
+
+        // Server disconnect dialog (connection lost during session)
+        if (viewModel.isDisconnected) {
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text("Соединение разорвано") },
+                text = { Text("Сервер недоступен. Соединение было разорвано.\n\nПерезапустите приложение для повторного подключения.") },
                 confirmButton = {
                     Button(onClick = { viewModel.exit() }) {
                         Text("Выйти")

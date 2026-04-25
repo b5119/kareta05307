@@ -8,7 +8,7 @@ import ru.gr05307.kareta05307.ui.UI
 
 class Main(
     val client: Client,
-    val ui: UI,
+    val ui: GraphicsUI,
 ) {
     fun start(){
         client.addMessageListener { author, message ->
@@ -16,6 +16,9 @@ class Main(
         }
         client.addInfoListener { message, msgType ->
             ui.showInfo(message,msgType)
+        }
+        client.addDisconnectListener {
+            ui.setDisconnected()
         }
 
         client.start()

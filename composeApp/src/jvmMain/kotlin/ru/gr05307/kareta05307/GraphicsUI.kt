@@ -22,12 +22,19 @@ class GraphicsUI : ViewModel(), UI {
     var connectionError by mutableStateOf<String?>(null)
         private set
 
+    var isDisconnected by mutableStateOf(false)
+        private set
+
     fun setConnectionErrorMessage(error: String) {
         connectionError = error
     }
 
     fun clearConnectionError() {
         connectionError = null
+    }
+
+    fun setDisconnected() {
+        isDisconnected = true
     }
 
     override fun showMessage(author: String, msg: String) {

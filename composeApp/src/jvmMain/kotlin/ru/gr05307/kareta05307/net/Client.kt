@@ -11,6 +11,7 @@ class Client(
 ) {
     private val messageListeners: MutableList<(String, String) -> Unit> = mutableListOf()
     private val infoListeners: MutableList<(String, InfoType) -> Unit> = mutableListOf()
+    private val disconnectListeners: MutableList<() -> Unit> = mutableListOf()
     private val communicator: Communicator
 
     val isActive: Boolean
@@ -19,8 +20,8 @@ class Client(
 
     init{
         communicator = Communicator(Socket(host, port))
-        //communicator.addDataListener(::parseData)
         communicator.addDataListener { parseData(it) }
+        communicator.addDisconnectListener { onDisconnect() }
     }
 
     fun addMessageListener(listener: (String, String) -> Unit) {
@@ -37,6 +38,14 @@ class Client(
 
     fun removeInfoListener(listener: (String, InfoType) -> Unit) {
         infoListeners.remove(listener)
+    }
+
+    fun addDisconnectListener(listener: () -> Unit) {
+        disconnectListeners.add(listener)
+    }
+
+    fun removeDisconnectListener(listener: () -> Unit) {
+        disconnectListeners.remove(listener)
     }
 
     fun sendData(data: String) {
@@ -56,6 +65,10 @@ class Client(
                 messageListeners.forEach { it(authMsg[0], authMsg[1]) }
             }
         }
+    }
+
+    private fun onDisconnect() {
+        disconnectListeners.forEach { it() }
     }
 
     fun start() {

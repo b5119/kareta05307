@@ -70,7 +70,7 @@ class ConnectedClient(private val socket: Socket) {
                 }
             }
         } else {
-            clients.forEach { it.sendData("${InfoType.MESSAGE}:$username: $data") }
+            clients.forEach { if (it.username != null) it.sendData("${InfoType.MESSAGE}:$username: $data") }
         }
     }
 
