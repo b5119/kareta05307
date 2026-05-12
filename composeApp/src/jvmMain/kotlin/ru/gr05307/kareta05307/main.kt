@@ -1,3 +1,4 @@
+// ru.gr05307.kareta05307/Main.kt (Modified)
 package ru.gr05307.kareta05307
 
 import androidx.compose.ui.window.Window
@@ -14,6 +15,21 @@ class Main(
         client.addMessageListener { author, message ->
             ui.showMessage(author,message)
         }
+
+        // NEW: Private message listener
+        client.addPrivateMessageListener { sender, message ->
+            ui.receivePrivateMessage(sender, message)
+        }
+
+        // NEW: User list listener
+        client.addUserListListener { users ->
+            // Update UI on main thread
+            kotlinx.coroutines.runBlocking {
+                kotlinx.coroutines.Dispatchers.Main
+            }
+            ui.updateOnlineUsers(users)
+        }
+
         client.addInfoListener { message, msgType ->
             ui.showInfo(message,msgType)
         }
