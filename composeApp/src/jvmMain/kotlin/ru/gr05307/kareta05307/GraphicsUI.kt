@@ -1,4 +1,4 @@
-// ru.gr05307.kareta05307/GraphicsUI.kt
+// ru.gr05307.kareta05307/GraphicsUI.kt (Fixed - clear username after registration)
 package ru.gr05307.kareta05307
 
 import androidx.compose.runtime.getValue
@@ -26,14 +26,12 @@ class GraphicsUI : ViewModel(), UI {
     var isDisconnected by mutableStateOf(false)
         private set
 
-    // NEW: User list and private message state
     private val _onlineUsers = mutableStateListOf<String>()
     val onlineUsers: List<String> = _onlineUsers
 
     var selectedPrivateUser by mutableStateOf<String?>(null)
         private set
 
-    // Store messages per user (for conversation view)
     private val privateMessages = mutableMapOf<String, MutableList<Pair<String, String>>>()
 
     fun setConnectionErrorMessage(error: String) {
@@ -48,61 +46,76 @@ class GraphicsUI : ViewModel(), UI {
         isDisconnected = true
     }
 
-    // NEW: Update online users list
     fun updateOnlineUsers(users: List<String>) {
+        println("DEBUG: Updating online users. New list: $users")
+        println("DEBUG: Current online users size: ${_onlineUsers.size}")
+        println("DEBUG: Current selected user: $selectedPrivateUser")
+
+        // Clear and add all to trigger UI updates
         _onlineUsers.clear()
         _onlineUsers.addAll(users)
+
+        println("DEBUG: After update, online users size: ${_onlineUsers.size}")
+
+        // If selected user left the chat, clear selection
+        val currentSelected = selectedPrivateUser
+        if (currentSelected != null && !_onlineUsers.contains(currentSelected)) {
+            println("DEBUG: Selected user $currentSelected left the chat. Clearing selection.")
+            selectPrivateUser(null)
+            // Add notification that user left
+            messages.add(Message("", "Пользователь $currentSelected покинул чат", false, InfoType.INFORMATION))
+        }
     }
 
-    // NEW: Receive private message
     fun receivePrivateMessage(sender: String, content: String) {
         val conversation = privateMessages.getOrPut(sender) { mutableListOf() }
         conversation.add(sender to content)
 
-        // If this conversation is currently selected, show in main messages
         if (selectedPrivateUser == sender) {
             messages.add(Message(sender, content, isFromMe = false, InfoType.PRIVATE))
         }
     }
 
-    // NEW: Send private message
     fun sendPrivateMessage(recipient: String, content: String) {
-        // Send via command
+        // Check if recipient is still online
+        if (!_onlineUsers.contains(recipient) && recipient != username) {
+            messages.add(Message("", "Ошибка: Пользователь $recipient не в сети", false, InfoType.WARNING))
+            return
+        }
+
         listeners.forEach { it("/pm $recipient $content") }
-        // Add to local conversation
+
         val conversation = privateMessages.getOrPut(recipient) { mutableListOf() }
         conversation.add("Вы" to content)
-        // Show in main messages if this conversation is selected
+
         if (selectedPrivateUser == recipient) {
             messages.add(Message("Вы → $recipient", content, isFromMe = true, InfoType.PRIVATE))
         }
+
         userText = ""
     }
 
-    // NEW: Select user for private chat
     fun selectPrivateUser(user: String?) {
         selectedPrivateUser = user
         if (user != null) {
-            // Clear current messages and show selected conversation
             messages.clear()
-            // Add system message
             messages.add(Message("", "=== Приватный чат с $user ===", false, InfoType.INFORMATION))
-            // Load conversation history
             privateMessages[user]?.forEach { (author, content) ->
                 val isFromMe = author == "Вы"
                 val displayAuthor = if (isFromMe) "Вы → $user" else author
                 messages.add(Message(displayAuthor, content, isFromMe, InfoType.PRIVATE))
             }
         } else {
-            // Back to public chat
             messages.clear()
             messages.add(Message("", "=== Публичный чат ===", false, InfoType.INFORMATION))
-            // Public messages are handled separately via showMessage
         }
     }
 
+    fun isInPrivateChat(): Boolean = selectedPrivateUser != null
+
+    fun getCurrentChatTarget(): String? = selectedPrivateUser
+
     override fun showMessage(author: String, msg: String) {
-        // Only add to public chat if not in private chat mode
         if (selectedPrivateUser == null) {
             messages.add(Message(author, msg, isFromMe = author == username))
         }
@@ -116,6 +129,8 @@ class GraphicsUI : ViewModel(), UI {
                     username = extractUsernameFromWelcomeMessage(msg)
                     waitingForUsername = false
                     showDialog = false
+                    // FIX: Clear the input text after successful registration
+                    userText = ""
                 } else if(!waitingForUsername) {
                     if (selectedPrivateUser == null) {
                         messages.add(Message("", msg, false, InfoType.INFORMATION))
@@ -165,6 +180,8 @@ class GraphicsUI : ViewModel(), UI {
     override fun start() {
         showDialog = true
         dialogMessage = "Введите своё имя"
+        // FIX: Clear any existing text when starting
+        userText = ""
     }
 
     fun send() {
@@ -179,8 +196,9 @@ class GraphicsUI : ViewModel(), UI {
                 return
             }
             listeners.forEach { it(text) }
+            // FIX: Don't clear here - wait for successful registration in showInfo
+            // The text will be cleared only after successful registration
         } else {
-            // Already connected - send message
             if (text.isNotBlank()) {
                 if (selectedPrivateUser != null) {
                     sendPrivateMessage(selectedPrivateUser!!, text)
@@ -194,5 +212,10 @@ class GraphicsUI : ViewModel(), UI {
 
     fun exit() {
         exitProcess(0)
+    }
+
+    fun disconnect() {
+        // Handle disconnect logic
+        isDisconnected = true
     }
 }

@@ -23,6 +23,10 @@ class Main(
 
         // NEW: User list listener
         client.addUserListListener { users ->
+            // Update UI on main thread
+            kotlinx.coroutines.runBlocking {
+                kotlinx.coroutines.Dispatchers.Main
+            }
             ui.updateOnlineUsers(users)
         }
 

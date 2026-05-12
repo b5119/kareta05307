@@ -76,6 +76,7 @@ class ConnectedClient(private val socket: Socket) {
         if (username != null) {
             clients.remove(username)
         }
+        broadcastUserList()
         stop()
         try {
             socket.close()
