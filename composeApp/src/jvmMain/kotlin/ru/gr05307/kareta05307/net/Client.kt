@@ -1,3 +1,4 @@
+// ru.gr05307.kareta05307.net/Client.kt
 package ru.gr05307.kareta05307.net
 
 import ru.gr05307.net.Communicator
@@ -10,8 +11,10 @@ class Client(
     port: Int = 5307,
 ) {
     private val messageListeners: MutableList<(String, String) -> Unit> = mutableListOf()
+    private val privateMessageListeners: MutableList<(String, String) -> Unit> = mutableListOf() // NEW
     private val infoListeners: MutableList<(String, InfoType) -> Unit> = mutableListOf()
     private val disconnectListeners: MutableList<() -> Unit> = mutableListOf()
+    private val userListListeners: MutableList<(List<String>) -> Unit> = mutableListOf() // NEW
     private val communicator: Communicator
 
     val isActive: Boolean
@@ -30,6 +33,24 @@ class Client(
 
     fun removeMessageListener(listener: (String, String) -> Unit) {
         messageListeners.remove(listener)
+    }
+
+    // NEW: Private message listener
+    fun addPrivateMessageListener(listener: (String, String) -> Unit) {
+        privateMessageListeners.add(listener)
+    }
+
+    fun removePrivateMessageListener(listener: (String, String) -> Unit) {
+        privateMessageListeners.remove(listener)
+    }
+
+    // NEW: User list listener
+    fun addUserListListener(listener: (List<String>) -> Unit) {
+        userListListeners.add(listener)
+    }
+
+    fun removeUserListListener(listener: (List<String>) -> Unit) {
+        userListListeners.remove(listener)
     }
 
     fun addInfoListener(listener: (String, InfoType) -> Unit) {
@@ -58,11 +79,26 @@ class Client(
         when (type) {
             InfoType.INFORMATION,
             InfoType.WARNING,
-            InfoType.ERROR -> infoListeners.forEach {it(msg[1], type)}
+            InfoType.ERROR -> infoListeners.forEach { it(msg[1], type) }
+
             InfoType.MESSAGE -> {
-                println(data)
                 val authMsg = msg[1].split(":", limit = 2)
                 messageListeners.forEach { it(authMsg[0], authMsg[1]) }
+            }
+
+            // NEW: Handle private messages
+            InfoType.PRIVATE -> {
+                // Format: PRIVATE:sender:content
+                val privateMsg = msg[1].split(":", limit = 2)
+                if (privateMsg.size == 2) {
+                    privateMessageListeners.forEach { it(privateMsg[0], privateMsg[1]) }
+                }
+            }
+
+            // NEW: Handle user list updates
+            InfoType.USERLIST -> {
+                val users = msg[1].split(",").filter { it.isNotEmpty() }
+                userListListeners.forEach { it(users) }
             }
         }
     }
