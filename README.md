@@ -1,232 +1,249 @@
-# Карета 05-307
+# Карета 05-307 — Chat Application with Spring Data JPA
 
-A desktop chat application built with **Kotlin Multiplatform** and **Compose Multiplatform**. This project implements a client-server chat system with a modern Material Design 3 UI.
-
-## Features
-
-- **Real-time messaging** - Send and receive messages instantly
-- **Multi-user support** - Multiple clients can connect simultaneously
-- **Unique usernames** - Server enforces username uniqueness and validation
-- **Visual message bubbles** - Own messages appear on the right, others on the left
-- **System notifications** - Join/leave events displayed as centered notifications
-- **Connection error handling** - Clear feedback when server is unavailable
-- **Auto-scroll** - Chat automatically scrolls to show latest messages
-- **Keyboard shortcuts** - Send messages with Enter key
-- **Material Design 3** - Modern, responsive UI with themed colors
-
-## Project Structure
-
-The project follows a multi-module architecture:
-
-```
-kareta05307/
-├── composeApp/          # Desktop GUI client application
-│   └── src/jvmMain/kotlin/ru/gr05307/kareta05307/
-│       ├── App.kt              # Main Compose UI with dialogs
-│       ├── main.kt             # Application entry point
-│       ├── GraphicsUI.kt       # ViewModel managing UI state
-│       ├── Message.kt          # Data class for chat messages
-│       ├── net/
-│       │   └── Client.kt       # Client network handler
-│       └── ui/
-│           ├── UI.kt           # UI interface
-│           └── ConsoleUI.kt    # Console-based UI (alternative)
-├── server/              # Server application
-│   └── src/jvmMain/kotlin/ru/gr05307/
-│       ├── Main.kt             # Server entry point
-│       ├── MainViewModel.kt    # Server lifecycle management
-│       └── net/
-│           ├── Server.kt          # TCP socket server
-│           └── ConnectedClient.kt # Per-client connection handler
-└── communicator/        # Shared networking module
-    └── src/jvmMain/kotlin/ru/gr05307/net/
-        ├── Communicator.kt   # Low-level socket communication
-        └── Constants.kt      # InfoType enum for message types
-```
+## Overview
+Карета 05-307 is a Kotlin Multiplatform desktop chat application built around a classic client-server architecture. The desktop client is implemented with Compose Multiplatform, communication is performed over raw TCP sockets, and chat history is now persisted to an embedded H2 database through Spring Boot and Spring Data JPA on the server side. This persistence integration was brought into the project from `kotlindbspring05-307` and adapted to the existing socket-based chat flow.
 
 ## Architecture
+The project is split into three modules:
 
-### Client Architecture
+- `composeApp` — Compose Multiplatform desktop GUI client
+- `server` — Kotlin + Spring Boot TCP server with JPA persistence
+- `communicator` — shared networking module (`Communicator.kt`, `Constants.kt` / `InfoType` enum)
 
-```
-┌─────────────────────────────────────────┐
-│              Compose UI (App.kt)        │
-│  ┌───────────────────────────────────┐  │
-│  │      AlertDialog (Errors/Input)   │  │
-│  └───────────────────────────────────┘  │
-│  ┌───────────────────────────────────┐  │
-│  │     LazyColumn (Message List)     │  │
-│  └───────────────────────────────────┘  │
-│  ┌───────────────────────────────────┐  │
-│  │      TextField + Send Button      │  │
-│  └───────────────────────────────────┘  │
-└─────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────┐
-│           GraphicsUI (ViewModel)        │
-│     - Manages UI state                  │
-│     - Handles user input validation     │
-│     - Messages state (mutableStateList) │
-└─────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────┐
-│              Client (net)               │
-│     - Socket connection to server       │
-│     - Message parsing and routing       │
-│     - Disconnect detection              │
-└─────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────┐
-│           Communicator                  │
-│     - Low-level socket I/O              │
-│     - DataInputStream/DataOutputStream  │
-└─────────────────────────────────────────┘
+Plain-text architecture diagram:
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                        composeApp                           │
+│  Compose Desktop UI (App.kt, GraphicsUI.kt, Client.kt)     │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               │ TCP sockets
+                               │ InfoType:payload
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                        communicator                         │
+│ Shared socket I/O via DataInputStream/DataOutputStream      │
+│ Communicator.kt + InfoType enum                             │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                           server                            │
+│ Spring Boot context + custom TCP server + Spring Data JPA   │
+│ Main.kt -> Server.kt -> ConnectedClient.kt                  │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                         H2 Database                         │
+│ server/data/chatdb.mv.db                                    │
+│ chat_messages table                                         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Server Architecture
+## Tech Stack
+| Category | Technology |
+|---|---|
+| Language | Kotlin 2.3.0 |
+| UI framework | Compose Multiplatform 1.10.0 |
+| Networking | Java TCP sockets with `ServerSocket` / `Socket` |
+| Database | H2 file-based embedded database |
+| ORM | Spring Data JPA + Hibernate |
+| Dependency injection | Spring Boot application context |
+| Build tool | Gradle 8.14.3 via Gradle Wrapper |
+| Java version | JDK 17+ |
 
-```
-┌─────────────────────────────────────────┐
-│              Server                     │
-│     - ServerSocket on port 5307         │
-│     - Accepts incoming connections      │
-└─────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────┐
-│         ConnectedClient (per client)    │
-│     - Username validation               │
-│     - Broadcasts messages to all users  │
-│     - Handles disconnect cleanup        │
-└─────────────────────────────────────────┘
-```
+## Prerequisites
+You need:
 
-### Communication Protocol
+- JDK 17 or newer
+- Gradle Wrapper support from the repository
+- Git
 
-Messages are exchanged as UTF-8 strings with a type prefix:
-
-```
-<message_type>:<payload>
-```
-
-**Message Types:**
-- `INFORMATION` - General info messages (welcome, user joined/left)
-- `WARNING` - Validation errors (duplicate username, invalid input)
-- `ERROR` - Critical errors
-- `MESSAGE` - Regular chat messages (`username: message text`)
-
-## Build & Run
-
-### Prerequisites
-
-- JDK 17 or later
-- Gradle (wrapper included)
-
-### Running the Server
+How to verify:
 
 ```bash
-./gradlew :server:run
+java -version
+./gradlew --version
+git --version
 ```
 
-Server starts on **port 5307** by default.
+## How to Run
 
-### Running the Client
-
+### Step 1 — Clone
 ```bash
-./gradlew :composeApp:run
+git clone https://github.com/b5119/kareta05307.git
+cd kareta05307
+chmod +x gradlew
 ```
 
-On Windows:
+### Step 2 — Start the Server (Terminal 1)
 ```bash
-.\gradlew.bat :composeApp:run
+./gradlew :server:run --no-configuration-cache --no-daemon
 ```
 
-### Building Distribution
+Expected startup flow in the logs:
 
+- Spring Boot banner appears
+- Spring initializes the application context without an HTTP server
+- HikariPool opens a connection to the H2 database
+- The server prints `Database ready. Starting chat server on port 5307...`
+- The server prints `Server listening on port 5307`
+
+Keep this terminal open while testing the application.
+
+### Step 3 — Start the Client (Terminal 2)
 ```bash
-./gradlew :composeApp:packageDistributionForCurrentOS
+./gradlew :composeApp:run --no-configuration-cache
 ```
 
-Creates native packages (`.dmg` for macOS, `.msi` for Windows, `.deb` for Linux).
+What happens:
 
-## Usage
+- A Compose Desktop window opens
+- The user is prompted to enter a username
+- After successful validation, the user joins the chat and can send messages
 
-1. **Start the server** first using the server run command above
-2. **Launch the client** application
-3. **Enter a username** when prompted:
-   - Must be unique (server will reject duplicates)
-   - Cannot contain spaces
-   - Cannot be empty
-4. **Start chatting**:
-   - Type messages in the text field
-   - Press **Enter** to send
-   - Press **Shift+Enter** for new lines
-   - Your messages appear on the **right** (blue bubbles)
-   - Others' messages appear on the **left** (gray bubbles)
+### Step 4 — Test Persistence
+Send several messages, close the client, and start it again. On reconnect, the latest chat history is replayed automatically from the database. This confirms that messages are persisted and restored correctly across client restarts.
 
-## Error Handling
+## Database
+- H2 file-based database stored at `server/data/chatdb.mv.db`
+- Created automatically on first server start
+- Table: `chat_messages` with columns: `id`, `sender_name`, `content`, `message_type`, `timestamp`
+- `spring.jpa.hibernate.ddl-auto=update` means schema is created or updated automatically
+- To switch to PostgreSQL: change `spring.datasource.*` in `application.properties` and swap `h2` `runtimeOnly` for `postgresql` in `server/build.gradle.kts`
 
-The application handles various error scenarios:
+## Message Protocol
+The application uses a simple wire protocol over TCP:
 
-| Scenario | Behavior |
-|----------|----------|
-| Server offline on launch | Shows "Ошибка подключения" dialog, requires exit |
-| Server disconnects mid-session | Shows "Соединение разорвано" dialog, requires exit |
-| Invalid username | Shows inline warning, prompts again |
-| Duplicate username | Shows warning, prompts for different name |
-| Connection lost during send | Detected and handled gracefully |
+- Payload format: `InfoType:payload`
+- Serialization: `DataOutputStream.writeUTF(...)`
+- Deserialization: `DataInputStream.readUTF(...)`
 
-## Technical Details
+`InfoType` values:
 
-### Dependencies
+- `INFORMATION` — system information, prompts, welcome messages, join/leave notices, history markers
+- `WARNING` — validation failures such as duplicate usernames or invalid input
+- `ERROR` — critical error messages
+- `MESSAGE` — regular public chat messages
+- `PRIVATE` — private direct-message payloads
+- `USERLIST` — online user list updates
 
-- **Kotlin** 2.3.0
-- **Compose Multiplatform** 1.10.0
-- **Material3** 1.10.0-alpha05
-- **AndroidX Lifecycle** 2.9.6 (ViewModel support)
-- **Kotlinx Coroutines** 1.10.2
+## Features
+- [x] Multi-user public chat
+- [x] Private messages (/pm username message)
+- [x] User list broadcast on join/leave
+- [x] Message persistence to H2 database
+- [x] Chat history replay (last 50 messages) on new client connect
+- [x] Username validation (unique, no spaces, non-empty)
+- [x] Join/leave notifications persisted to DB
 
-### Module Dependencies
-
+## Project Structure
+```text
+kareta05307/
+├── README.md
+│   Project overview and usage documentation.
+├── settings.gradle.kts
+│   Includes the three modules and configures plugin repositories.
+├── gradle/
+│   └── libs.versions.toml
+│       Centralized dependency and plugin version catalog.
+├── communicator/
+│   Shared networking code used by client and server.
+│   └── src/jvmMain/kotlin/ru/gr05307/net/
+│       ├── Communicator.kt
+│       │   Socket helper built on DataInputStream/DataOutputStream.
+│       └── Constants.kt
+│           Defines the InfoType protocol enum.
+├── server/
+│   TCP chat server backed by Spring Boot and Spring Data JPA.
+│   ├── build.gradle.kts
+│   │   Server module build, Spring plugins, runtime task, H2 dependency.
+│   └── src/jvmMain/
+│       ├── kotlin/ru.gr05307/
+│       │   ├── Main.kt
+│       │   │   Starts Spring with WebApplicationType.NONE, then starts the TCP server.
+│       │   ├── MainViewModel.kt
+│       │   │   Thin wrapper that starts the blocking server accept loop.
+│       │   ├── database/
+│       │   │   ├── ChatMessage.kt
+│       │   │   │   JPA entity for persisted chat records.
+│       │   │   ├── ChatMessageRepository.kt
+│       │   │   │   Spring Data repository for retrieving recent messages.
+│       │   │   └── ChatMessageService.kt
+│       │   │       Service layer for storing and replaying chat history.
+│       │   └── net/
+│       │       ├── Server.kt
+│       │       │   Listens on port 5307 and spawns a thread per client.
+│       │       └── ConnectedClient.kt
+│       │           Handles username negotiation, history replay, broadcast, and persistence.
+│       └── resources/
+│           └── application.properties
+│               H2 and JPA configuration for the Spring server.
+├── composeApp/
+│   Compose Multiplatform desktop client.
+│   └── src/jvmMain/kotlin/ru/gr05307/kareta05307/
+│       ├── App.kt
+│       │   Main Compose UI, dialogs, sidebar, chat area, theming.
+│       ├── GraphicsUI.kt
+│       │   ViewModel-like UI state holder for public chat, private chat, and presence.
+│       ├── Message.kt
+│       │   Message model used by the desktop UI.
+│       ├── main.kt
+│       │   Desktop app entrypoint.
+│       ├── net/
+│       │   └── Client.kt
+│       │       Client socket layer and protocol parsing.
+│       └── ui/
+│           UI abstraction and supporting UI classes.
+└── server/data/
+    Runtime-generated H2 database files after first server launch.
 ```
-composeApp ──> communicator
-server     ──> communicator
-```
 
-The `communicator` module provides shared networking code used by both client and server.
+## Build Commands Reference
+| Command | Purpose |
+|---|---|
+| `./gradlew :server:build --no-configuration-cache --no-daemon` | Builds the server module and runs compile checks. |
+| `./gradlew :server:run --no-configuration-cache --no-daemon` | Starts the Spring-backed TCP server. |
+| `./gradlew :composeApp:build --no-configuration-cache --no-daemon` | Builds the Compose Desktop client. |
+| `./gradlew :composeApp:run --no-configuration-cache` | Launches the desktop client UI. |
+| `./gradlew :communicator:build --no-configuration-cache --no-daemon` | Builds the shared networking module. |
 
-### State Management
+Flag reference:
 
-The client uses Compose's `mutableStateOf` and `mutableStateListOf` for reactive UI updates:
+- `--no-configuration-cache` avoids stale configuration-cache behavior during iterative development
+- `--no-daemon` is especially useful for long-running server processes so Gradle does not manage them through a reusable daemon
 
-- `GraphicsUI` extends `ViewModel` for lifecycle-aware state
-- `messages` - observable list of chat messages
-- `connectionError` / `isDisconnected` - error state flags
-- `userText` - input field state
+## Spring Integration Notes
+Spring was integrated without introducing an HTTP server. In `Main.kt`, the application starts with `SpringApplicationBuilder(...).web(WebApplicationType.NONE).run()`, which creates the Spring context only for dependency injection, JPA, Hibernate, and datasource management. After the context is ready, the code obtains `ChatMessageService` from Spring and starts the blocking TCP socket server.
 
-### Threading
+The `kotlin.spring` and `kotlin.jpa` plugins are important here:
 
-- **Server**: Each client runs in a dedicated thread (`kotlin.concurrent.thread`)
-- **Client**: Network I/O runs on background threads; UI updates on main thread via Compose's state system
+- `kotlin.spring` supports Spring-friendly open classes and proxying behavior
+- `kotlin.jpa` supports JPA entity conventions such as proxy compatibility and no-arg constructor expectations
 
-## Development
+This allows the project to keep its original custom TCP chat server while using Spring Data JPA for persistence.
 
-### Project Files
+## Known Issues / Limitations
+- Server must be started before client
+- H2 dialect warning in logs is harmless (remove `spring.jpa.properties.hibernate.dialect` from `application.properties` to silence it)
+- `./gradlew :server:run` uses Gradle daemon which may time out on long runs; use `--no-daemon` for production-like testing
 
-- `plan.md` - Development roadmap
-- `change.md` - Detailed changelog of connection error handling implementation
+## Contributing
+Contributions should follow a normal fork-and-PR workflow against the upstream repository `ProfessorMB21/kareta05307`.
 
-### Testing Scenarios
+Suggested flow:
 
-1. **Basic Chat**: Start server, connect multiple clients, verify message broadcasting
-2. **Username Validation**: Test empty names, names with spaces, duplicate names
-3. **Disconnect Handling**: Kill server while clients are connected
-4. **Offline Launch**: Launch client without server running
-5. **Reconnection**: Restart client after server comes back online
+1. Fork the repository
+2. Create a feature branch from `master`
+3. Make and test your changes locally
+4. Commit with clear messages
+5. Push your branch to your fork
+6. Open a pull request referencing the upstream `ProfessorMB21/kareta05307` project
 
----
+For larger changes, prefer keeping module boundaries intact:
 
-Built with Kotlin Multiplatform and Compose Multiplatform
+- UI work in `composeApp`
+- persistence and server logic in `server`
+- shared protocol/networking updates in `communicator`
