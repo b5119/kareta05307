@@ -1,168 +1,125 @@
-// ru.gr05307.net/ConnectedClient.kt
 package ru.gr05307.net
 
+import ru.gr05307.database.ChatMessageService
+import ru.gr05307.net.Communicator
+import ru.gr05307.net.InfoType
 import java.net.Socket
-import java.util.concurrent.ConcurrentHashMap
 
-class ConnectedClient(private val socket: Socket) {
-    companion object {
-        private val clients = ConcurrentHashMap<String, ConnectedClient>()
-
-        // Broadcast user list to all connected clients
-        private fun broadcastUserList() {
-            val userList = clients.keys.joinToString(",")
-            val message = "${InfoType.USERLIST}:$userList"
-            clients.values.forEach { client ->
-                if (!client.isDisconnected() && client.username != null) {
-                    try {
-                        client.sendData(message)
-                    } catch (_: Exception) {
-                        // Will be cleaned up in parseData
-                    }
-                }
-            }
-        }
-
-        // Send private message to specific user
-        private fun sendPrivateMessage(sender: String, recipient: String, content: String) {
-            val recipientClient = clients[recipient]
-            if (recipientClient != null && !recipientClient.isDisconnected()) {
-                // Send to recipient
-                recipientClient.sendData("${InfoType.PRIVATE}:$sender:$content")
-                // Also send back to sender (so they see it in their chat)
-                // val senderClient = clients[sender]
-                // senderClient?.sendData("${InfoType.PRIVATE}:$recipient:$content")
-            } else {
-                val senderClient = clients[sender]
-                senderClient?.sendData("${InfoType.ERROR}:Пользователь $recipient не в сети")
-            }
-        }
-    }
-
+class ConnectedClient(
+    private val socket: Socket,
+    private val clients: MutableList<ConnectedClient>,
+    private val chatMessageService: ChatMessageService,
+) {
     private val communicator = Communicator(socket)
     private var username: String? = null
 
-    init {
-        communicator.addDataListener { parseData(it) }
-        // Don't add to clients until username is validated
-        sendData("${InfoType.INFORMATION}:Введите своё имя")
-    }
+    fun handle() {
+        try {
+            negotiateUsername()
+            if (username == null) return
 
-    private fun notifyJoin() {
-        val joinMsg = "${InfoType.INFORMATION}:Пользователь ${username} присоединился к чату."
-        val aliveClients = clients.values.filter { it !== this && !it.isDisconnected() }
-        aliveClients.forEach { it.sendData(joinMsg) }
-        broadcastUserList()
-    }
+            // ── Send message history to this newly connected client ──
+            sendHistory()
 
-    private fun notifyLeave(client: ConnectedClient) {
-        val cName = client.username
-        if (cName != null) {
-            val leaveMsg = "${InfoType.INFORMATION}:Пользователь $cName покинул чат."
-            val aliveClients = clients.values.filter { it !== client && !it.isDisconnected() }
-            aliveClients.forEach { alive ->
-                try {
-                    alive.sendData(leaveMsg)
-                } catch (_: Exception) {
-                    // dead client cleaned by parseData call
+            // Announce join
+            val joinMsg = "Пользователь $username присоединился к чату."
+            broadcast(InfoType.INFORMATION, joinMsg, exceptSelf = true)
+            chatMessageService.saveMessage("SYSTEM", joinMsg, InfoType.INFORMATION.name)
+
+            // ── Main read loop ──
+            while (true) {
+                val raw = communicator.receive() ?: break       // null = disconnected
+                val (type, payload) = parseIncoming(raw) ?: continue
+
+                if (type == InfoType.MESSAGE) {
+                    val formatted = "$username: $payload"
+                    broadcast(InfoType.MESSAGE, formatted, exceptSelf = false)
+                    chatMessageService.saveMessage(username!!, payload, InfoType.MESSAGE.name)
                 }
             }
-            broadcastUserList()
-        }
-    }
-
-    private fun handleDisconnect() {
-        notifyLeave(this)
-        if (username != null) {
-            clients.remove(username)
-        }
-        broadcastUserList()
-        stop()
-        try {
+        } catch (_: Exception) {
+            // connection closed / reset
+        } finally {
+            val leaveMsg = "Пользователь $username покинул чат."
+            broadcast(InfoType.INFORMATION, leaveMsg, exceptSelf = true)
+            chatMessageService.saveMessage("SYSTEM", leaveMsg, InfoType.INFORMATION.name)
             socket.close()
-        } catch (_: Exception) {
         }
     }
 
-    private fun parseData(data: String) {
-        // Clean up disconnected clients
-        val disconnectedClients = clients.values.filter { it.isDisconnected() }.toList()
-        disconnectedClients.forEach { client ->
-            notifyLeave(client)
-            if (client.username != null) {
-                clients.remove(client.username)
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Send a formatted message only to THIS client. */
+    fun sendMessage(type: InfoType, text: String) {
+        communicator.send("${type.name}:$text")
+    }
+
+    /** Walk existing clients (under lock) and send to all (or all except self). */
+    private fun broadcast(type: InfoType, text: String, exceptSelf: Boolean) {
+        synchronized(clients) {
+            clients.forEach { c ->
+                if (!exceptSelf || c !== this) {
+                    c.sendMessage(type, text)
+                }
             }
         }
+    }
 
-        // Handle username registration phase
-        if (username == null) {
+    /** Replay last 50 messages from the database to this client only. */
+    private fun sendHistory() {
+        val history = chatMessageService.getRecentMessages()
+        if (history.isEmpty()) return
+
+        sendMessage(InfoType.INFORMATION, "── История чата (последние ${history.size} сообщений) ──")
+        history.forEach { msg ->
+            val infoType = runCatching { InfoType.valueOf(msg.messageType) }
+                .getOrDefault(InfoType.MESSAGE)
+            val text = if (msg.messageType == InfoType.MESSAGE.name)
+                "${msg.senderName}: ${msg.content}"
+            else
+                msg.content
+            sendMessage(infoType, text)
+        }
+        sendMessage(InfoType.INFORMATION, "── Конец истории ──")
+    }
+
+    /**
+     * Username handshake.
+     * Mirrors the existing protocol: server asks, client sends a name,
+     * server validates (non-empty, no spaces, unique) and confirms.
+     */
+    private fun negotiateUsername() {
+        communicator.send("${InfoType.INFORMATION.name}:Введите своё имя")
+        while (true) {
+            val raw = communicator.receive() ?: return
+            val candidate = raw.trim()
+
             when {
-                data.isBlank() -> {
-                    sendData("${InfoType.WARNING}:Имя не может быть пустым. Введите имя.")
-                }
-                data.trim() != data -> {
-                    sendData("${InfoType.WARNING}:Имя не должно содержать пробелов в начале или конце. Введите другое имя.")
-                }
-                clients.containsKey(data) -> {
-                    sendData("${InfoType.WARNING}:Такое имя уже использовано. Введите другое имя.")
-                }
+                candidate.isBlank() ->
+                    communicator.send("${InfoType.WARNING.name}:Имя не может быть пустым")
+
+                candidate.contains(' ') ->
+                    communicator.send("${InfoType.WARNING.name}:Имя не должно содержать пробелы")
+
+                synchronized(clients) { clients.any { it.username == candidate } } ->
+                    communicator.send("${InfoType.WARNING.name}:Имя уже занято")
+
                 else -> {
-                    username = data
-                    clients[data] = this
-                    sendData("${InfoType.INFORMATION}:Добро пожаловать, $data!")
-                    notifyJoin()
-                }
-            }
-        } else {
-            // Already registered - process messages
-            processChatMessage(data)
-        }
-    }
-
-    private fun processChatMessage(data: String) {
-        // Check for private message command
-        if (data.startsWith("/pm ") || data.startsWith("/private ")) {
-            val prefix = if (data.startsWith("/pm ")) "/pm " else "/private "
-            val withoutPrefix = data.removePrefix(prefix)
-            val firstSpace = withoutPrefix.indexOf(' ')
-
-            if (firstSpace > 0) {
-                val recipient = withoutPrefix.substring(0, firstSpace)
-                val content = withoutPrefix.substring(firstSpace + 1)
-                if (content.isNotBlank()) {
-                    // Send private message - server does NOT echo back
-                    sendPrivateMessage(username!!, recipient, content)
-                } else {
-                    // prohibit sending empty messages
-                    sendData("${InfoType.WARNING}:Нельзя отправить пустое сообщение")
-                }
-            } else {
-                sendData("${InfoType.WARNING}:Использование: /pm имя_пользователя сообщение")
-            }
-        }
-        // Regular public message
-        else {
-            clients.values.forEach { client ->
-                if (client.username != null && !client.isDisconnected()) {
-                    client.sendData("${InfoType.MESSAGE}:${username}: $data")
+                    username = candidate
+                    communicator.send("${InfoType.INFORMATION.name}:Добро пожаловать, $candidate!")
+                    return
                 }
             }
         }
     }
 
-    fun start() = communicator.start()
-
-    fun sendData(data: String) {
-        try {
-            communicator.sendData(data)
-        } catch (_: Exception) {
-            handleDisconnect()
-        }
-    }
-
-    fun stop() = communicator.stop()
-
-    fun isDisconnected(): Boolean {
-        return socket.isClosed || !socket.isConnected
+    /** Parse raw wire string into (InfoType, payload) or null if malformed. */
+    private fun parseIncoming(raw: String): Pair<InfoType, String>? {
+        val colon = raw.indexOf(':')
+        if (colon < 0) return null
+        val typeName = raw.substring(0, colon)
+        val payload = raw.substring(colon + 1)
+        val type = runCatching { InfoType.valueOf(typeName) }.getOrNull() ?: return null
+        return type to payload
     }
 }

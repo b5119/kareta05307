@@ -1,0 +1,20 @@
+# ════════════════════════════════════════════════════════════════════════
+# ADD THESE ENTRIES to your existing gradle/libs.versions.toml
+# (merge into the correct [versions], [libraries], and [plugins] sections)
+# ════════════════════════════════════════════════════════════════════════
+
+# ── [versions] ───────────────────────────────────────────────────────────
+# springBoot = "3.3.5"
+# springDependencyManagement = "1.1.6"
+# h2 = "2.3.232"
+
+# ── [libraries] ──────────────────────────────────────────────────────────
+# spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa", version.ref = "springBoot" }
+# h2 = { module = "com.h2database:h2", version.ref = "h2" }
+# postgresql = { module = "org.postgresql:postgresql" }   # version managed by Spring BOM
+
+# ── [plugins] ────────────────────────────────────────────────────────────
+# kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+# kotlin-jpa   = { id = "org.jetbrains.kotlin.plugin.jpa",    version.ref = "kotlin" }
+# spring-boot  = { id = "org.springframework.boot",            version.ref = "springBoot" }
+# dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }

@@ -1,16 +1,15 @@
 package ru.gr05307.net
 
-import java.io.BufferedReader
 import java.io.DataInputStream
 import java.io.DataOutputStream
-import java.io.InputStreamReader
-import java.io.PrintWriter
 import java.net.Socket
 import kotlin.concurrent.thread
 
 class Communicator(
     private val socket: Socket,
 ) {
+    private val input by lazy { DataInputStream(socket.getInputStream()) }
+    private val output by lazy { DataOutputStream(socket.getOutputStream()) }
 
     private val dataListeners = mutableListOf<(String)->Unit>()
     private val disconnectListeners = mutableListOf<() -> Unit>()
@@ -34,14 +33,24 @@ class Communicator(
     var isActive = false
         private set
 
+    fun send(data: String) {
+        sendData(data)
+    }
+
     fun sendData(data: String) {
         try {
-            DataOutputStream(socket.getOutputStream()).let { dos ->
-                dos.writeUTF(data)
-                dos.flush()
-            }
+            output.writeUTF(data)
+            output.flush()
         } catch (_: Exception) {
             // Connection likely broken, will be detected in read loop
+        }
+    }
+
+    fun receive(): String? {
+        return try {
+            input.readUTF()
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -49,12 +58,10 @@ class Communicator(
         thread {
             isActive = true
             try {
-                DataInputStream(socket.getInputStream()).let { dis ->
-                    while (isActive) {
-                        val userData = dis.readUTF()
-                        dataListeners.forEach {
-                            it(userData)
-                        }
+                while (isActive) {
+                    val userData = input.readUTF()
+                    dataListeners.forEach {
+                        it(userData)
                     }
                 }
             } catch (_: Exception) {
