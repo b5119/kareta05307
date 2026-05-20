@@ -17,3 +17,6 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+server/data/
+APPLY_INSTRUCTIONS.sh
+libs.versions.toml.additions.txt
