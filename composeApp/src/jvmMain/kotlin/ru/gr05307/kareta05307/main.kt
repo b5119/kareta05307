@@ -4,37 +4,45 @@ package ru.gr05307.kareta05307
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import ru.gr05307.kareta05307.net.Client
-import ru.gr05307.kareta05307.ui.ConsoleUI
-import ru.gr05307.kareta05307.ui.UI
+import javax.swing.SwingUtilities
 
 class Main(
     val client: Client,
     val ui: GraphicsUI,
 ) {
-    fun start(){
+    private var started = false
+
+    fun start() {
+        if (started) return
+        started = true
+
         client.addMessageListener { author, message ->
-            ui.showMessage(author,message)
-        }
-
-        // NEW: Private message listener
-        client.addPrivateMessageListener { sender, message ->
-            ui.receivePrivateMessage(sender, message)
-        }
-
-        // NEW: User list listener
-        client.addUserListListener { users ->
-            // Update UI on main thread
-            kotlinx.coroutines.runBlocking {
-                kotlinx.coroutines.Dispatchers.Main
+            SwingUtilities.invokeLater {
+                ui.showMessage(author, message)
             }
-            ui.updateOnlineUsers(users)
+        }
+
+        client.addPrivateMessageListener { sender, message ->
+            SwingUtilities.invokeLater {
+                ui.receivePrivateMessage(sender, message)
+            }
+        }
+
+        client.addUserListListener { users ->
+            SwingUtilities.invokeLater {
+                ui.updateOnlineUsers(users)
+            }
         }
 
         client.addInfoListener { message, msgType ->
-            ui.showInfo(message,msgType)
+            SwingUtilities.invokeLater {
+                ui.showInfo(message, msgType)
+            }
         }
         client.addDisconnectListener {
-            ui.setDisconnected()
+            SwingUtilities.invokeLater {
+                ui.setDisconnected()
+            }
         }
 
         client.start()
@@ -65,12 +73,15 @@ fun main() = application {
     }
 
     connect()
+    main?.start()
 
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = {
+            client?.stop()
+            exitApplication()
+        },
         title = "Карета 05-307",
     ) {
         App(ui)
-        main?.start()
     }
 }

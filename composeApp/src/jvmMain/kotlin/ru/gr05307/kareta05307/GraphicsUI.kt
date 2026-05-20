@@ -12,6 +12,7 @@ import kotlin.system.exitProcess
 
 class GraphicsUI : ViewModel(), UI {
     private val listeners: MutableList<(String) -> Unit> = mutableListOf()
+    private val publicMessages = mutableListOf<Message>()
 
     var showDialog by mutableStateOf(false)
     var dialogMessage by mutableStateOf("")
@@ -47,23 +48,13 @@ class GraphicsUI : ViewModel(), UI {
     }
 
     fun updateOnlineUsers(users: List<String>) {
-        println("DEBUG: Updating online users. New list: $users")
-        println("DEBUG: Current online users size: ${_onlineUsers.size}")
-        println("DEBUG: Current selected user: $selectedPrivateUser")
-
-        // Clear and add all to trigger UI updates
         _onlineUsers.clear()
         _onlineUsers.addAll(users)
 
-        println("DEBUG: After update, online users size: ${_onlineUsers.size}")
-
-        // If selected user left the chat, clear selection
         val currentSelected = selectedPrivateUser
         if (currentSelected != null && !_onlineUsers.contains(currentSelected)) {
-            println("DEBUG: Selected user $currentSelected left the chat. Clearing selection.")
             selectPrivateUser(null)
-            // Add notification that user left
-            messages.add(Message("", "Пользователь $currentSelected покинул чат", false, InfoType.INFORMATION))
+            appendPublicMessage(Message("", "Пользователь $currentSelected покинул чат", false, InfoType.INFORMATION))
         }
     }
 
@@ -77,13 +68,12 @@ class GraphicsUI : ViewModel(), UI {
     }
 
     fun sendPrivateMessage(recipient: String, content: String) {
-        // Check if recipient is still online
         if (!_onlineUsers.contains(recipient) && recipient != username) {
-            messages.add(Message("", "Ошибка: Пользователь $recipient не в сети", false, InfoType.WARNING))
+            appendPublicMessage(Message("", "Ошибка: Пользователь $recipient не в сети", false, InfoType.WARNING))
             return
         }
 
-        listeners.forEach { it("/pm $recipient $content") }
+        listeners.forEach { it("${InfoType.PRIVATE.name}:$recipient:$content") }
 
         val conversation = privateMessages.getOrPut(recipient) { mutableListOf() }
         conversation.add("Вы" to content)
@@ -106,8 +96,7 @@ class GraphicsUI : ViewModel(), UI {
                 messages.add(Message(displayAuthor, content, isFromMe, InfoType.PRIVATE))
             }
         } else {
-            messages.clear()
-            messages.add(Message("", "=== Публичный чат ===", false, InfoType.INFORMATION))
+            restorePublicMessages()
         }
     }
 
@@ -116,9 +105,7 @@ class GraphicsUI : ViewModel(), UI {
     fun getCurrentChatTarget(): String? = selectedPrivateUser
 
     override fun showMessage(author: String, msg: String) {
-        if (selectedPrivateUser == null) {
-            messages.add(Message(author, msg, isFromMe = author == username))
-        }
+        appendPublicMessage(Message(author, msg, isFromMe = author == username))
     }
 
     override fun showInfo(msg: String, msgType: InfoType) {
@@ -129,12 +116,10 @@ class GraphicsUI : ViewModel(), UI {
                     username = extractUsernameFromWelcomeMessage(msg)
                     waitingForUsername = false
                     showDialog = false
-                    // FIX: Clear the input text after successful registration
                     userText = ""
+                    restorePublicMessages()
                 } else if(!waitingForUsername) {
-                    if (selectedPrivateUser == null) {
-                        messages.add(Message("", msg, false, InfoType.INFORMATION))
-                    }
+                    appendPublicMessage(Message("", msg, false, InfoType.INFORMATION))
                     showDialog = false
                 } else {
                     showDialog = true
@@ -144,9 +129,7 @@ class GraphicsUI : ViewModel(), UI {
                 if (waitingForUsername) {
                     showDialog = true
                 } else {
-                    if (selectedPrivateUser == null) {
-                        messages.add(Message("", msg, false, InfoType.WARNING))
-                    }
+                    appendPublicMessage(Message("", msg, false, InfoType.WARNING))
                     showDialog = false
                 }
             }
@@ -154,9 +137,7 @@ class GraphicsUI : ViewModel(), UI {
                 if (waitingForUsername) {
                     showDialog = true
                 } else {
-                    if (selectedPrivateUser == null) {
-                        messages.add(Message("", msg, false, InfoType.ERROR))
-                    }
+                    appendPublicMessage(Message("", msg, false, InfoType.ERROR))
                     showDialog = false
                 }
             }
@@ -180,7 +161,6 @@ class GraphicsUI : ViewModel(), UI {
     override fun start() {
         showDialog = true
         dialogMessage = "Введите своё имя"
-        // FIX: Clear any existing text when starting
         userText = ""
     }
 
@@ -196,14 +176,21 @@ class GraphicsUI : ViewModel(), UI {
                 return
             }
             listeners.forEach { it(text) }
-            // FIX: Don't clear here - wait for successful registration in showInfo
-            // The text will be cleared only after successful registration
         } else {
             if (text.isNotBlank()) {
                 if (selectedPrivateUser != null) {
                     sendPrivateMessage(selectedPrivateUser!!, text)
+                } else if (text.startsWith("/pm ")) {
+                    val parts = text.removePrefix("/pm ").split(" ", limit = 2)
+                    if (parts.size != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+                        appendPublicMessage(
+                            Message("", "Используйте формат: /pm username message", false, InfoType.WARNING)
+                        )
+                    } else {
+                        sendPrivateMessage(parts[0], parts[1])
+                    }
                 } else {
-                    listeners.forEach { it(text) }
+                    listeners.forEach { it("${InfoType.MESSAGE.name}:$text") }
                     userText = ""
                 }
             }
@@ -215,7 +202,19 @@ class GraphicsUI : ViewModel(), UI {
     }
 
     fun disconnect() {
-        // Handle disconnect logic
         isDisconnected = true
+    }
+
+    private fun appendPublicMessage(message: Message) {
+        publicMessages.add(message)
+        if (selectedPrivateUser == null) {
+            messages.add(message)
+        }
+    }
+
+    private fun restorePublicMessages() {
+        messages.clear()
+        messages.add(Message("", "=== Публичный чат ===", false, InfoType.INFORMATION))
+        messages.addAll(publicMessages)
     }
 }

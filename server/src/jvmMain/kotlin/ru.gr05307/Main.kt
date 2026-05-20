@@ -16,7 +16,15 @@ fun main() {
         .run()
 
     val chatMessageService = context.getBean(ChatMessageService::class.java)
+    val server = Server(chatMessageService)
+
+    Runtime.getRuntime().addShutdownHook(
+        Thread {
+            server.stop()
+            context.close()
+        }
+    )
 
     println("Database ready. Starting chat server on port 5307...")
-    MainViewModel(Server(chatMessageService)).start()
+    MainViewModel(server).start()
 }

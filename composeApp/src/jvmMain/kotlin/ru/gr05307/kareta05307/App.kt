@@ -99,7 +99,6 @@ val CustomDarkGradient = Brush.linearGradient(
 fun App(viewModel: GraphicsUI) {
     val listState = rememberLazyListState()
     var isDarkTheme by remember { mutableStateOf(false) }
-    var showSettingsMenu by remember { mutableStateOf(false) }
 
     // Auto-scroll to latest message when messages change
     LaunchedEffect(viewModel.messages.size) {
@@ -244,7 +243,7 @@ fun EnhancedSidebar(
     var showUserMenu by remember { mutableStateOf(false) }
     var showStatusMenu by remember { mutableStateOf(false) }
     var userStatus by remember { mutableStateOf("Онлайн") }
-    var onlineUsersCounter by remember { mutableStateOf(onlineUsers.size) }
+    val onlineUsersCounter = onlineUsers.size
     val userColor = remember(currentUser) {
         Color.hsv(Random(currentUser.hashCode()).nextFloat() * 360f, 0.6f, 0.9f)
     }
@@ -674,7 +673,7 @@ fun ChatArea(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    var onlineUsersCounter by remember { mutableStateOf(viewModel.onlineUsers.size) }
+                    val onlineUsersCounter = viewModel.onlineUsers.size
                     Text(
                         text = if (viewModel.selectedPrivateUser != null)
                             "Приватный чат"
@@ -699,16 +698,6 @@ fun ChatArea(
                     }
                 }
 
-                // Typing indicator (future feature)
-                if (viewModel.selectedPrivateUser != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "✏️ Печатает...",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                }
             }
         }
 

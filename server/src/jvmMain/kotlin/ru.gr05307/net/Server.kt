@@ -2,6 +2,7 @@ package ru.gr05307.net
 
 import ru.gr05307.database.ChatMessageService
 import java.net.ServerSocket
+import java.net.SocketException
 import kotlin.concurrent.thread
 
 class Server(
@@ -10,23 +11,36 @@ class Server(
 ) {
     private val clients = mutableListOf<ConnectedClient>()
     private lateinit var serverSocket: ServerSocket
+    @Volatile
+    private var isRunning = false
 
     fun start() {
+        if (isRunning) return
+        isRunning = true
         serverSocket = ServerSocket(port)
         println("Server listening on port $port")
 
-        while (true) {
-            val socket = serverSocket.accept()
-            thread {
-                val client = ConnectedClient(socket, clients, chatMessageService)
-                synchronized(clients) { clients.add(client) }
-                client.handle()
-                synchronized(clients) { clients.remove(client) }
+        try {
+            while (isRunning) {
+                val socket = serverSocket.accept()
+                thread(name = "chat-client-${socket.port}") {
+                    val client = ConnectedClient(socket, clients, chatMessageService)
+                    synchronized(clients) { clients.add(client) }
+                    client.handle()
+                }
             }
+        } catch (e: SocketException) {
+            if (isRunning) throw e
+        } finally {
+            stop()
         }
     }
 
     fun stop() {
-        if (::serverSocket.isInitialized) serverSocket.close()
+        if (!isRunning && (!::serverSocket.isInitialized || serverSocket.isClosed)) return
+        isRunning = false
+        if (::serverSocket.isInitialized && !serverSocket.isClosed) {
+            serverSocket.close()
+        }
     }
 }
