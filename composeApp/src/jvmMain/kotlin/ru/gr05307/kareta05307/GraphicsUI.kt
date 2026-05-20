@@ -6,6 +6,10 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import ru.gr05307.kareta05307.ui.UI
 import ru.gr05307.net.InfoType
 import kotlin.system.exitProcess
@@ -13,6 +17,7 @@ import kotlin.system.exitProcess
 class GraphicsUI : ViewModel(), UI {
     private val listeners: MutableList<(String) -> Unit> = mutableListOf()
     private val publicMessages = mutableListOf<Message>()
+    private val uiScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     var showDialog by mutableStateOf(false)
     var dialogMessage by mutableStateOf("")
@@ -141,13 +146,21 @@ class GraphicsUI : ViewModel(), UI {
                     showDialog = false
                 }
             }
-            InfoType.MESSAGE, InfoType.PRIVATE, InfoType.USERLIST -> {}
+            InfoType.MESSAGE -> {
+                    val colon = msg.indexOf(": ")
+                    if (colon > 0) {
+                        val author = msg.substring(0, colon)
+                        val content = msg.substring(colon + 2)
+                        appendPublicMessage(Message(author, content, isFromMe = author == username, InfoType.MESSAGE))
+                    }
+                }
+                InfoType.PRIVATE, InfoType.USERLIST -> {}
         }
     }
 
     private fun extractUsernameFromWelcomeMessage(msg: String): String? {
-        val match = Regex("Добро пожаловать, (.+)!").find(msg)
-        return match?.groupValues?.get(1)
+        val name = msg.removePrefix("Добро пожаловать, ").removeSuffix("!")
+        return name.ifBlank { null }
     }
 
     override fun addUserDataListener(listener: (String) -> Unit) {
@@ -206,9 +219,11 @@ class GraphicsUI : ViewModel(), UI {
     }
 
     private fun appendPublicMessage(message: Message) {
-        publicMessages.add(message)
-        if (selectedPrivateUser == null) {
-            messages.add(message)
+        uiScope.launch {
+            publicMessages.add(message)
+            if (selectedPrivateUser == null) {
+                messages.add(message)
+            }
         }
     }
 

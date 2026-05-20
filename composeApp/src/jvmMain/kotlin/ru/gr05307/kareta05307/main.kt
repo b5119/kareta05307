@@ -3,44 +3,49 @@ package ru.gr05307.kareta05307
 
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import ru.gr05307.kareta05307.net.Client
-import javax.swing.SwingUtilities
 
 class Main(
     val client: Client,
     val ui: GraphicsUI,
 ) {
     private var started = false
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     fun start() {
         if (started) return
         started = true
 
         client.addMessageListener { author, message ->
-            SwingUtilities.invokeLater {
+            scope.launch {
                 ui.showMessage(author, message)
             }
         }
 
         client.addPrivateMessageListener { sender, message ->
-            SwingUtilities.invokeLater {
+            scope.launch {
                 ui.receivePrivateMessage(sender, message)
             }
         }
 
         client.addUserListListener { users ->
-            SwingUtilities.invokeLater {
+            scope.launch {
                 ui.updateOnlineUsers(users)
             }
         }
 
         client.addInfoListener { message, msgType ->
-            SwingUtilities.invokeLater {
+            scope.launch {
                 ui.showInfo(message, msgType)
             }
         }
         client.addDisconnectListener {
-            SwingUtilities.invokeLater {
+            scope.launch {
                 ui.setDisconnected()
             }
         }
@@ -50,6 +55,10 @@ class Main(
             client.sendData(it)
         }
         ui.start()
+    }
+
+    fun cancel() {
+        scope.cancel()
     }
 }
 
@@ -77,6 +86,7 @@ fun main() = application {
 
     Window(
         onCloseRequest = {
+            main?.cancel()
             client?.stop()
             exitApplication()
         },
